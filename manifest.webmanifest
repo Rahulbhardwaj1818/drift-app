@@ -1,0 +1,15 @@
+{
+  "name": "Drift Weather",
+  "short_name": "Drift",
+  "description": "Live weather, radar, satellite maps, and headlines in one calm dashboard.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#09111f",
+  "theme_color": "#09111f",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "assets/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
