@@ -108,6 +108,27 @@
               </article>
             </div>
 
+            <section class="air-quality-section" aria-labelledby="airQualityHeading">
+              <div class="section-heading air-quality-heading">
+                <div><p class="card-kicker">Breathe easier</p><h3 id="airQualityHeading">Air quality</h3></div>
+                <span class="aqi-standard">US AQI · estimate</span>
+              </div>
+              <div class="air-quality-card glass-card" id="airQualityCard" data-level="loading">
+                <div class="air-quality-overview">
+                  <div class="aqi-score"><strong id="airQualityValue">--</strong><span>US AQI</span></div>
+                  <div class="aqi-summary"><strong id="airQualityLabel">Checking local air…</strong><p id="airQualityAdvice">Air quality data is loading for this location.</p></div>
+                </div>
+                <div class="aqi-meter" role="img" aria-label="Air quality index scale from 0 to 500"><span id="airQualityMarker"></span></div>
+                <div class="aqi-meter-labels"><span>Good</span><span>Moderate</span><span>Unhealthy</span><span>Hazardous</span></div>
+                <div class="air-pollutants">
+                  <div><span>PM2.5</span><strong id="airPm25">--</strong><small>μg/m³</small></div>
+                  <div><span>PM10</span><strong id="airPm10">--</strong><small>μg/m³</small></div>
+                  <div><span>Ozone</span><strong id="airOzone">--</strong><small>μg/m³</small></div>
+                </div>
+                <p class="air-quality-source"><span id="airQualityUpdated">Forecast estimate</span> · Data: <a href="https://ads.atmosphere.copernicus.eu/datasets/cams-global-atmospheric-composition-forecasts" target="_blank" rel="noreferrer">CAMS</a> via <a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noreferrer">Open-Meteo</a></p>
+              </div>
+            </section>
+
             <section class="map-section" aria-labelledby="mapHeading">
               <div class="section-heading map-heading">
                 <div><p class="card-kicker">See the sky</p><h3 id="mapHeading">Radar & satellite</h3></div>

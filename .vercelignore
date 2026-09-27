@@ -2,3 +2,7 @@
 .vercel-config
 .vercel-data
 .vercel-cache
+.npm-cache
+.vercel-appdata
+.vercel-localappdata
+tools

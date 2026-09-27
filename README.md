@@ -10,6 +10,7 @@ Built by Rahul Kumar.
 - Celsius/Fahrenheit switching
 - Light/dark theme toggle
 - Interactive radar map with recent-frame timeline and playback
+- Current US AQI estimate with PM2.5, PM10, and ozone readings
 - Satellite imagery layer with recenter control
 - Animated cloud atmosphere above the dashboard
 - Location-aware weather headlines with refresh and source links
@@ -32,4 +33,4 @@ Then open `http://127.0.0.1:4173/`.
 
 Open the live app in Chrome or Edge, then use the browser menu and choose **Install app** or **Add to Home screen**. The app includes a manifest and service worker, so it opens like a standalone app and keeps the interface shell available offline. It is a PWA, not yet a Play Store APK.
 
-The app calls the public Open-Meteo forecast/geocoding endpoints and RainViewer radar endpoint directly from the browser. The Vercel function at `/api/news` reads GDELT DOC article search with a Google News RSS fallback, keeping news requests same-origin and keyless. Map imagery is provided by Leaflet, OpenStreetMap/CARTO, and Esri World Imagery.
+The app calls the public Open-Meteo forecast, geocoding, and air-quality endpoints and RainViewer radar endpoint directly from the browser. AQI is a model-based US AQI estimate, not an official local regulatory reading. The Vercel function at `/api/news` reads GDELT DOC article search with a Google News RSS fallback, keeping news requests same-origin and keyless. The radar basemap uses keyless OpenStreetMap raster tiles; satellite imagery is from Esri World Imagery.

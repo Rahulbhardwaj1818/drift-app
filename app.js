@@ -2,14 +2,17 @@ const state = {
   unit: localStorage.getItem('drift-unit') || 'celsius',
   place: { name: 'San Francisco', latitude: 37.7749, longitude: -122.4194, admin1: 'California', country: 'United States' },
   weather: null,
+  airQuality: null,
+  weatherRequestId: 0,
+  airQualityRequestId: 0,
   lastQuery: '',
   installPrompt: null,
-  map: { instance: null, mode: 'radar', baseLayer: null, radarLayer: null, radarFrames: [], radarIndex: 0, radarTimer: null, marker: null },
+  map: { instance: null, mode: 'radar', baseLayer: null, radarLayer: null, radarFrames: [], radarIndex: 0, radarTimer: null, radarTileLoaded: false, radarTileErrors: 0, marker: null },
   newsRequestId: 0
 };
 
 const els = {
-  placeName: document.querySelector('#placeName'), placeMeta: document.querySelector('#placeMeta'), updatedText: document.querySelector('#updatedText'), loading: document.querySelector('#loadingState'), content: document.querySelector('#weatherContent'), error: document.querySelector('#errorState'), errorMessage: document.querySelector('#errorMessage'), retry: document.querySelector('#retryButton'), searchForm: document.querySelector('#searchForm'), searchInput: document.querySelector('#searchInput'), searchResults: document.querySelector('#searchResults'), currentDate: document.querySelector('#currentDate'), currentIcon: document.querySelector('#currentIcon'), currentTemp: document.querySelector('#currentTemp'), currentCondition: document.querySelector('#currentCondition'), feelsLike: document.querySelector('#feelsLike'), highLow: document.querySelector('#highLow'), sunrise: document.querySelector('#sunrise'), sunset: document.querySelector('#sunset'), sunPosition: document.querySelector('#sunPosition'), humidity: document.querySelector('#humidity'), wind: document.querySelector('#wind'), rainChance: document.querySelector('#rainChance'), visibility: document.querySelector('#visibility'), pressure: document.querySelector('#pressure'), uvIndex: document.querySelector('#uvIndex'), hourly: document.querySelector('#hourlyList'), forecast: document.querySelector('#forecastList'), map: document.querySelector('#weatherMap'), mapStatus: document.querySelector('#mapStatus'), mapFallback: document.querySelector('#mapFallback'), mapLocationLabel: document.querySelector('#mapLocationLabel'), radarTimeline: document.querySelector('#radarTimeline'), radarLegend: document.querySelector('#radarLegend'), radarRange: document.querySelector('#radarRange'), radarTime: document.querySelector('#radarTime'), radarStart: document.querySelector('#radarStart'), radarPlay: document.querySelector('#radarPlay'), recenterMap: document.querySelector('#recenterMap'), newsList: document.querySelector('#newsList'), newsStatus: document.querySelector('#newsStatus'), refreshNews: document.querySelector('#refreshNews')
+  placeName: document.querySelector('#placeName'), placeMeta: document.querySelector('#placeMeta'), updatedText: document.querySelector('#updatedText'), loading: document.querySelector('#loadingState'), content: document.querySelector('#weatherContent'), error: document.querySelector('#errorState'), errorMessage: document.querySelector('#errorMessage'), retry: document.querySelector('#retryButton'), searchForm: document.querySelector('#searchForm'), searchInput: document.querySelector('#searchInput'), searchResults: document.querySelector('#searchResults'), currentDate: document.querySelector('#currentDate'), currentIcon: document.querySelector('#currentIcon'), currentTemp: document.querySelector('#currentTemp'), currentCondition: document.querySelector('#currentCondition'), feelsLike: document.querySelector('#feelsLike'), highLow: document.querySelector('#highLow'), sunrise: document.querySelector('#sunrise'), sunset: document.querySelector('#sunset'), sunPosition: document.querySelector('#sunPosition'), humidity: document.querySelector('#humidity'), wind: document.querySelector('#wind'), rainChance: document.querySelector('#rainChance'), visibility: document.querySelector('#visibility'), pressure: document.querySelector('#pressure'), uvIndex: document.querySelector('#uvIndex'), hourly: document.querySelector('#hourlyList'), forecast: document.querySelector('#forecastList'), airQualityCard: document.querySelector('#airQualityCard'), airQualityValue: document.querySelector('#airQualityValue'), airQualityLabel: document.querySelector('#airQualityLabel'), airQualityAdvice: document.querySelector('#airQualityAdvice'), airQualityMarker: document.querySelector('#airQualityMarker'), airPm25: document.querySelector('#airPm25'), airPm10: document.querySelector('#airPm10'), airOzone: document.querySelector('#airOzone'), airQualityUpdated: document.querySelector('#airQualityUpdated'), map: document.querySelector('#weatherMap'), mapStatus: document.querySelector('#mapStatus'), mapFallback: document.querySelector('#mapFallback'), mapLocationLabel: document.querySelector('#mapLocationLabel'), radarTimeline: document.querySelector('#radarTimeline'), radarLegend: document.querySelector('#radarLegend'), radarRange: document.querySelector('#radarRange'), radarTime: document.querySelector('#radarTime'), radarStart: document.querySelector('#radarStart'), radarPlay: document.querySelector('#radarPlay'), recenterMap: document.querySelector('#recenterMap'), newsList: document.querySelector('#newsList'), newsStatus: document.querySelector('#newsStatus'), refreshNews: document.querySelector('#refreshNews')
 };
 
 const codeInfo = {
@@ -117,7 +120,9 @@ async function loadNews() {
   els.newsList.innerHTML = '<article class="news-card glass-card news-loading"><span class="news-loading-orb"></span><p>Scanning the latest headlines…</p></article>';
   setText(els.newsStatus, `Fetching ${state.place.name} headlines`);
   try {
-    const response = await fetch(`/api/news?place=${encodeURIComponent(state.place.name)}`);
+    const localPreview = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && location.port;
+    const newsOrigin = localPreview ? '' : 'https://weather-app-seven-neon-58.vercel.app';
+    const response = await fetch(`${newsOrigin}/api/news?place=${encodeURIComponent(state.place.name)}`);
     if (!response.ok) throw new Error('News service unavailable');
     const data = await response.json();
     if (requestId !== state.newsRequestId) return;
@@ -146,9 +151,9 @@ function setMapFallback(show, message = 'Map data is taking a moment') {
 
 function baseMapLayer(mode) {
   if (mode === 'satellite') {
-    return L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
+    return L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, pane: 'basemapPane', attribution: 'Tiles &copy; Esri' });
   }
-  return L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '&copy; OpenStreetMap contributors &copy; CARTO' });
+  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, pane: 'basemapPane', attribution: '&copy; OpenStreetMap contributors' });
 }
 
 function initMap() {
@@ -156,6 +161,8 @@ function initMap() {
   if (!window.L) { setMapFallback(true, 'Interactive maps are unavailable'); setText(els.mapStatus, 'Map unavailable'); return; }
   try {
     state.map.instance = L.map(els.map, { zoomControl: false, preferCanvas: true }).setView([state.place.latitude, state.place.longitude], 6);
+    state.map.instance.createPane('basemapPane');
+    state.map.instance.getPane('basemapPane').style.zIndex = 200;
     L.control.zoom({ position: 'bottomright' }).addTo(state.map.instance);
     state.map.baseLayer = baseMapLayer(state.map.mode).addTo(state.map.instance);
     state.map.marker = L.circleMarker([state.place.latitude, state.place.longitude], { radius: 7, color: '#f7bd68', weight: 3, fillColor: '#f7bd68', fillOpacity: .95 }).addTo(state.map.instance);
@@ -180,13 +187,34 @@ function renderRadarFrame(index) {
   if (!frames.length) return;
   state.map.radarIndex = Math.max(0, Math.min(index, frames.length - 1));
   const frame = frames[state.map.radarIndex];
+  const tileUrl = `${state.map.radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+  state.map.radarTileLoaded = false;
+  state.map.radarTileErrors = 0;
   if (!state.map.radarLayer) {
-    const tileUrl = `${state.map.radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-    state.map.radarLayer = L.tileLayer(tileUrl, { opacity: .74, maxZoom: 7, maxNativeZoom: 7, tileSize: 256, attribution: 'Weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>' });
+    state.map.radarLayer = L.tileLayer(tileUrl, { opacity: .74, maxZoom: 19, maxNativeZoom: 7, tileSize: 256, attribution: 'Weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>' });
+    state.map.radarLayer.on('tileload', () => {
+      state.map.radarTileLoaded = true;
+      state.map.radarTileErrors = 0;
+      if (state.map.mode === 'radar') {
+        setMapFallback(false);
+        setText(els.mapStatus, 'Live radar');
+      }
+    });
+    state.map.radarLayer.on('tileerror', () => {
+      state.map.radarTileErrors += 1;
+      if (!state.map.radarTileLoaded && state.map.radarTileErrors >= 3 && state.map.mode === 'radar') {
+        setText(els.mapStatus, 'Radar tiles unavailable');
+        setMapFallback(true, 'Radar tiles could not be loaded');
+      }
+    });
   } else {
-    state.map.radarLayer.setUrl(`${state.map.radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`);
+    state.map.radarLayer.setUrl(tileUrl);
   }
-  if (state.map.mode === 'radar' && !state.map.instance.hasLayer(state.map.radarLayer)) state.map.radarLayer.addTo(state.map.instance);
+  if (state.map.mode === 'radar') {
+    setMapFallback(false);
+    setText(els.mapStatus, 'Loading radar tiles…');
+    if (!state.map.instance.hasLayer(state.map.radarLayer)) state.map.radarLayer.addTo(state.map.instance);
+  }
   if (els.radarRange) els.radarRange.value = String(state.map.radarIndex);
   setText(els.radarTime, `${mapFrameDate(frame.time)} · ${state.map.radarIndex === frames.length - 1 ? 'latest' : 'past'}`);
   setText(els.radarStart, `${mapFrameTime(frames[0].time)} · ${frames.length} frames`);
@@ -194,21 +222,27 @@ function renderRadarFrame(index) {
 
 async function loadRadar() {
   if (!state.map.instance || state.map.radarFrames.length) return;
+  setText(els.mapStatus, 'Connecting to radar…');
   try {
-    const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', { cache: 'no-store' });
     if (!response.ok) throw new Error('Radar feed unavailable');
     const data = await response.json();
     const frames = data.radar?.past || [];
-    if (!frames.length || !data.host) throw new Error('No radar frames');
-    state.map.radarHost = data.host;
-    state.map.radarFrames = frames.slice(-13);
+    const host = new URL(data.host);
+    if (!frames.length || host.protocol !== 'https:' || !(host.hostname === 'rainviewer.com' || host.hostname.endsWith('.rainviewer.com'))) throw new Error('No valid radar frames');
+    const validFrames = frames.filter(frame => Number.isFinite(frame.time) && typeof frame.path === 'string' && frame.path.startsWith('/v2/radar/'));
+    if (!validFrames.length) throw new Error('No usable radar frames');
+    state.map.radarHost = host.origin;
+    state.map.radarFrames = validFrames.slice(-13);
     els.radarRange.max = String(state.map.radarFrames.length - 1);
     setMapFallback(false);
     renderRadarFrame(state.map.radarFrames.length - 1);
-    setText(els.mapStatus, 'Live radar');
+    setText(els.mapStatus, 'Loading radar tiles…');
   } catch {
-    setText(els.mapStatus, 'Radar unavailable');
-    setMapFallback(true, 'Radar data is unavailable right now');
+    if (state.map.mode === 'radar') {
+      setText(els.mapStatus, 'Radar unavailable');
+      setMapFallback(true, 'Radar data is unavailable right now');
+    }
   }
 }
 
@@ -225,7 +259,8 @@ function setMapMode(mode) {
     if (isRadar) { renderRadarFrame(state.map.radarIndex); }
     else if (state.map.instance.hasLayer(state.map.radarLayer)) state.map.instance.removeLayer(state.map.radarLayer);
   }
-  setText(els.mapStatus, isRadar ? (state.map.radarFrames.length ? 'Live radar' : 'Loading radar') : 'Satellite imagery');
+  if (!isRadar) setMapFallback(false);
+  setText(els.mapStatus, isRadar ? (state.map.radarFrames.length ? 'Loading radar tiles…' : 'Loading radar') : 'Satellite imagery');
   if (isRadar && !state.map.radarFrames.length) loadRadar();
   setTimeout(() => state.map.instance?.invalidateSize(), 80);
 }
@@ -253,16 +288,84 @@ function updateRadarPlayButton() {
 }
 
 async function fetchWeather(place = state.place) {
+  const weatherRequestId = ++state.weatherRequestId;
+  const airQualityRequestId = ++state.airQualityRequestId;
   state.place = place; renderPlace(); setLoading(true);
   const params = new URLSearchParams({ latitude: place.latitude, longitude: place.longitude, timezone: 'auto', forecast_days: '7', current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,visibility', hourly: 'temperature_2m,precipitation_probability,weather_code', daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,uv_index_max' });
   try {
     const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
     if (!response.ok) throw new Error('The weather service returned an error.');
-    state.weather = await response.json();
+    const weather = await response.json();
+    if (weatherRequestId !== state.weatherRequestId) return;
+    state.weather = weather;
     renderWeather();
+    loadAirQuality(place, airQualityRequestId);
     localStorage.setItem('drift-place', JSON.stringify(state.place));
   } catch (error) {
+    if (weatherRequestId !== state.weatherRequestId) return;
     showError('Check your connection and try again. If the issue continues, search for the city once more.');
+  }
+}
+
+function airQualityCategory(value) {
+  if (value <= 50) return { name: 'Good', advice: 'Air quality is satisfactory for most people.', color: '#73d3a9', level: 'good' };
+  if (value <= 100) return { name: 'Moderate', advice: 'Sensitive people may want to limit prolonged outdoor exertion.', color: '#e7cc72', level: 'moderate' };
+  if (value <= 150) return { name: 'Unhealthy for sensitive groups', advice: 'Children and people with asthma or heart conditions should take care outdoors.', color: '#ed9a5e', level: 'sensitive' };
+  if (value <= 200) return { name: 'Unhealthy', advice: 'Consider reducing long or intense outdoor activity.', color: '#e87579', level: 'unhealthy' };
+  if (value <= 300) return { name: 'Very unhealthy', advice: 'Reduce outdoor exertion and keep sensitive groups indoors.', color: '#bd8be5', level: 'very-unhealthy' };
+  return { name: 'Hazardous', advice: 'Avoid strenuous outdoor activity and follow local health guidance.', color: '#c777a8', level: 'hazardous' };
+}
+
+function renderAirQuality(data) {
+  const current = data?.current;
+  if (!current || !Number.isFinite(current.us_aqi)) {
+    els.airQualityCard.dataset.level = 'unavailable';
+    setText(els.airQualityValue, '—');
+    setText(els.airQualityLabel, 'Air quality unavailable');
+    setText(els.airQualityAdvice, 'There is no air-quality reading available for this location right now.');
+    setText(els.airQualityUpdated, 'Reading unavailable');
+    els.airQualityMarker.style.left = '0%';
+    setText(els.airPm25, Number.isFinite(current?.pm2_5) ? current.pm2_5.toFixed(1) : '—');
+    setText(els.airPm10, Number.isFinite(current?.pm10) ? current.pm10.toFixed(1) : '—');
+    setText(els.airOzone, Number.isFinite(current?.ozone) ? current.ozone.toFixed(1) : '—');
+    return;
+  }
+  const aqi = Math.max(0, Math.round(current.us_aqi));
+  const category = airQualityCategory(aqi);
+  els.airQualityCard.dataset.level = category.level;
+  els.airQualityCard.style.setProperty('--aqi-color', category.color);
+  setText(els.airQualityValue, String(aqi));
+  setText(els.airQualityLabel, category.name);
+  setText(els.airQualityAdvice, category.advice);
+  setText(els.airQualityUpdated, `Updated ${formatTime(current.time)} · US AQI model estimate`);
+  els.airQualityMarker.style.left = `${Math.min(100, (aqi / 500) * 100)}%`;
+  setText(els.airPm25, Number.isFinite(current.pm2_5) ? current.pm2_5.toFixed(1) : '—');
+  setText(els.airPm10, Number.isFinite(current.pm10) ? current.pm10.toFixed(1) : '—');
+  setText(els.airOzone, Number.isFinite(current.ozone) ? current.ozone.toFixed(1) : '—');
+}
+
+async function loadAirQuality(place, requestId) {
+  els.airQualityCard.dataset.level = 'loading';
+  els.airQualityCard.style.setProperty('--aqi-color', '#8da2b4');
+  setText(els.airQualityValue, '--');
+  setText(els.airQualityLabel, 'Checking local air…');
+  setText(els.airQualityAdvice, 'Air quality data is loading for this location.');
+  setText(els.airQualityUpdated, 'Updating reading');
+  setText(els.airPm25, '--');
+  setText(els.airPm10, '--');
+  setText(els.airOzone, '--');
+  try {
+    const params = new URLSearchParams({ latitude: place.latitude, longitude: place.longitude, current: 'us_aqi,pm2_5,pm10,ozone', timezone: 'auto' });
+    const response = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${params}`);
+    if (!response.ok) throw new Error('Air-quality service unavailable');
+    const data = await response.json();
+    if (requestId !== state.airQualityRequestId) return;
+    state.airQuality = data;
+    renderAirQuality(data);
+  } catch {
+    if (requestId !== state.airQualityRequestId) return;
+    state.airQuality = null;
+    renderAirQuality(null);
   }
 }
 
